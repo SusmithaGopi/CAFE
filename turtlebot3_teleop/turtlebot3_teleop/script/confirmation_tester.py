@@ -11,7 +11,7 @@ class ConfirmationTester(Node):
 
     def run_input_loop(self):
         while rclpy.ok():
-            user_input = input("👉 Enter confirmation (k/t1/t2/t3/c): ").strip().lower()
+            user_input = input("👉 Give acknowledgement from kitchen or tables (k/t1/t2/t3/c): ").strip().lower()
             data_map = {
                 'k': 'kitchen',
                 't1': 'table1',

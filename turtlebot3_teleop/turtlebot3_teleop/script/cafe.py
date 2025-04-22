@@ -18,6 +18,7 @@ class ButlerAllInOne(Node):
         self.step = 0
         self.timeout_steps = 10
         self.confirmation = ''
+        self.needs_kitchen_return = False  # 🔁 Flag to track if any table was canceled/timed out
 
     def confirmation_callback(self, msg):
         incoming = msg.data.strip().lower()
@@ -31,7 +32,7 @@ class ButlerAllInOne(Node):
         self.confirmation = shortcut_map.get(incoming, incoming)
 
     def get_user_input(self):
-        table_input = input("Enter table (t1/t2/t3): ").strip().lower().split()
+        table_input = input("Place Your Order with table ID (t1/t2/t3): ").strip().lower().split()
         shortcut_map = {
             't1': 'table1',
             't2': 'table2',
@@ -57,6 +58,7 @@ class ButlerAllInOne(Node):
                 self.get_user_input()
                 if self.order_queue:
                     self.task_queue = self.order_queue.copy()
+                    self.needs_kitchen_return = False  # Reset flag
                     self.state = 'GO_TO_KITCHEN'
                     self.step = 0
                 return
@@ -72,7 +74,7 @@ class ButlerAllInOne(Node):
                 self.step = 0
 
         elif self.state == 'WAIT_KITCHEN_CONFIRM':
-            self.get_logger().info("📦 Waiting for kitchen confirmation...")
+            self.get_logger().info("📦 Waiting for kitchen ACK...")
             if self.confirmation == 'kitchen':
                 self.get_logger().info("✅ Kitchen confirmed.")
                 self.state = 'NEXT_TABLE'
@@ -91,7 +93,8 @@ class ButlerAllInOne(Node):
                 self.state = 'GO_TO_TABLE'
                 self.step = 0
             else:
-                self.state = 'GO_TO_KITCHEN_AGAIN'
+                # All deliveries attempted. Now return to kitchen if needed
+                self.state = 'RETURN_KITCHEN' if self.needs_kitchen_return else 'RETURN_HOME'
                 self.step = 0
 
         elif self.state == 'GO_TO_TABLE':
@@ -104,25 +107,27 @@ class ButlerAllInOne(Node):
                 self.step = 0
 
         elif self.state == 'WAIT_TABLE_CONFIRM':
-            self.get_logger().info(f"🍽 Waiting for confirmation at {self.current_table}...")
+            self.get_logger().info(f"🍽 Waiting for acknowledgement at {self.current_table}...")
             if self.confirmation == self.current_table:
                 self.get_logger().info(f"✅ {self.current_table} confirmed.")
                 self.state = 'NEXT_TABLE'
                 self.step = 0
             elif self.confirmation == 'cancel':
-                self.get_logger().warn(f"❌ Skipping {self.current_table} as canceled.")
+                self.get_logger().warn(f"❌ Skipping {self.current_table} as the order got canceled.")
+                self.needs_kitchen_return = True
                 self.state = 'NEXT_TABLE'
                 self.step = 0
             elif self.step > self.timeout_steps:
                 self.get_logger().warn(f"⏰ No confirmation at {self.current_table}. Skipping.")
+                self.needs_kitchen_return = True
                 self.state = 'NEXT_TABLE'
                 self.step = 0
             else:
                 self.step += 1
 
-        elif self.state == 'GO_TO_KITCHEN_AGAIN':
+        elif self.state == 'RETURN_KITCHEN':
             self.publish_drive_command(linear=0.1)
-            self.get_logger().info("🔁 Returning to kitchen after deliveries...")
+            self.get_logger().info("🔁 Returning to kitchen after failed deliveries...")
             self.step += 1
             if self.step > 5:
                 self.publish_drive_command(0.0)
@@ -142,6 +147,7 @@ class ButlerAllInOne(Node):
                 self.task_queue.clear()
                 self.confirmation = ''
                 self.current_table = None
+                self.needs_kitchen_return = False
 
 def main(args=None):
     rclpy.init(args=args)
