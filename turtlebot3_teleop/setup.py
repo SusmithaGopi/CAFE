@@ -35,7 +35,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'teleop_keyboard = turtlebot3_teleop.script.teleop_keyboard:main',
+            'cafe = turtlebot3_teleop.script.cafe:main',
             'confirmation_tester = turtlebot3_teleop.script.confirmation_tester:main',
         ],
     },
